@@ -31,8 +31,11 @@ class ImageCodeView(APIView):
         # 1.生成图片验证码
         text, image = captcha.generate_captcha()
         # 2.保存真实值
-        redis_conn = get_redis_connection('verify_codes')
-        redis_conn.setex('img_%s' % image_code_id, constants.IMAGE_CODE_REDIS_EXPIRES, text)
+        redis_conn = get_redis_connection("verify_codes")
+        print(redis_conn)
+        print(text)
+        print(image)
+        redis_conn.setex("img_%s" % image_code_id, constants.IMAGE_CODE_REDIS_EXPIRES, text)
         # 3.返回图片
         return HttpResponse(image, content_type="images/jpg")
 
@@ -58,16 +61,16 @@ class SMSCodeView(GenericAPIView):
         # redis_conn.setex("send_flag_%s" % mobile, constants.SEND_SMS_CODE_INTERVAL, 1)
 
         # redis管道
-        p1 = redis_conn.pipeline()
-        p1.setex("sms_%s" % mobile, constants.SMS_CODE_REDIS_EXPIRES, sms_code)
-        p1.setex("send_flag_%s" % mobile, constants.SEND_SMS_CODE_INTERVAL, 1)
+        pl = redis_conn.pipeline()
+        pl.setex("sms_%s" % mobile, constants.SMS_CODE_REDIS_EXPIRES, sms_code)
+        pl.setex("send_flag_%s" % mobile, constants.SEND_SMS_CODE_INTERVAL, 1)
         # 让管道通知redis执行命令
-        p1.execute()
+        pl.execute()
 
         # 5.发送短信
         try:
-            ccp = CCP()
             expires = str(constants.SMS_CODE_REDIS_EXPIRES // 60)
+            ccp = CCP()
             result = ccp.send_template_sms(mobile, [sms_code, expires], constants.SMS_CODE_TEMP_ID)
         except Exception as e:
             logger.error("发送验证码短信[异常][ mobile: %s, message: %s ]" % (mobile, e))
@@ -78,4 +81,4 @@ class SMSCodeView(GenericAPIView):
                 return Response({"message": "OK"})
             else:
                 logger.warning("发送验证码短信[失败][ mobile: %s ]" % mobile)
-                return Response({"message": "Failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({"message": "failed"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
